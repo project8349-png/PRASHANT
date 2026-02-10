@@ -1,0 +1,18 @@
+{
+  "cli": {
+    "version": ">= 5.4.0"
+  },
+  "build": {
+    "production": {
+      "channel": "production"
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccount": "./service-account.json",
+        "track": "production"
+      }
+    }
+  }
+}
