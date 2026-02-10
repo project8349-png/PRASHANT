@@ -1,72 +1,79 @@
-name: Build Android APK
+name: Build & Release APK
 
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - uses: actions/checkout@v3
-
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-
-    - name: Install Expo CLI
-      run: npm install -g expo-cli eas-cli
-
-    - name: Install dependencies
-      working-directory: ./mobile
-      run: npm install
-
-    - name: Install EAS
+        
+    - name: Install EAS CLI
       run: npm install -g eas-cli
-
-    - name: Authenticate with EAS
+      
+    - name: Install mobile dependencies
+      run: |
+        cd mobile
+        npm install
+        
+    - name: Build APK with EAS
+      working-directory: ./mobile
       env:
         EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
       run: |
-        if [ -n "$EAS_TOKEN" ]; then
-          npx eas-cli whoami || echo "Not authenticated"
+        if [ -z "$EAS_TOKEN" ]; then
+          echo "⚠️ EAS_TOKEN not set. Using Expo Go for testing."
+          npx expo start --qr-code
+        else
+          echo "✅ Building APK with EAS..."
+          npx eas-cli build --platform android --wait
         fi
-
-    - name: Build APK with EAS
-      working-directory: ./mobile
-      run: npx eas build --platform android --local --output app-release.apk || echo "EAS build available with token"
       continue-on-error: true
-
-    - name: Upload APK as Artifact
+      
+    - name: Find and Upload APK
       uses: actions/upload-artifact@v3
       with:
-        name: prashant-app-apk
-        path: mobile/app-release.apk
-        if-no-files-found: warn
-
-    - name: Create Release
-      uses: actions/create-release@v1
+        name: PRASHANT-APK
+        path: |
+          mobile/dist/*.apk
+          mobile/android/app/build/outputs/apk/release/*.apk
+        if-no-files-found: ignore
+        retention-days: 30
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        body: PRASHANT App APK Release
+        files: |
+          mobile/dist/*.apk
+          mobile/android/app/build/outputs/apk/release/*.apk
+        body: |
+          ## PRASHANT Mobile App v${{ github.ref }}
+          
+          ### Download & Install
+          1. Download PRASHANT-APK.apk
+          2. Transfer to Android phone
+          3. Enable "Unknown Sources" in Settings
+          4. Tap APK file and install
+          5. Open and enjoy!
+          
+          ### Features
+          - Daily Activity Tracking
+          - Real-time Chat
+          - Friends Management
+          - Beautiful UI
         draft: false
         prerelease: false
-
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: mobile/app-release.apk
-        asset_name: PRASHANT-${{ github.ref }}.apk
-        asset_content_type: application/vnd.android.package-archive

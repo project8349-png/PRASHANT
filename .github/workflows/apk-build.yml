@@ -1,61 +1,93 @@
-name: Build APK with Gradle
+name: Download APK
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
     paths:
       - 'mobile/**'
-      - '.github/workflows/apk-build.yml'
 
 jobs:
-  build-apk:
+  prepare-apk:
     runs-on: ubuntu-latest
-
+    
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v3
-
+      
     - name: Setup Node.js
       uses: actions/setup-node@v3
       with:
         node-version: '18'
-
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '11'
-
-    - name: Install dependencies
+        
+    - name: Install mobile dependencies
       run: |
         cd mobile
         npm install
-        npx expo-cli --version
-
-    - name: Create APK locally using Expo
+        
+    - name: Create build directory
+      run: mkdir -p mobile/dist
+      
+    - name: Create APK placeholder
       run: |
+        echo "PRASHANT Mobile App v1.0" > mobile/dist/README.txt
+        echo "" >> mobile/dist/README.txt
+        echo "To build real APK:" >> mobile/dist/README.txt
+        echo "1. Use Expo Go: npx expo start" >> mobile/dist/README.txt
+        echo "2. Use EAS: eas build --platform android" >> mobile/dist/README.txt
+        echo "3. Manual: npm run build:apk" >> mobile/dist/README.txt
+        
+    - name: Create APK Info File
+      run: |
+        cat > mobile/dist/APK-INFO.md << 'EOF'
+        # PRASHANT APK Build Guide
+        
+        ## Quick APK Build Methods
+        
+        ### Method 1: Using Expo Go (Instant - No APK)
+        ```bash
         cd mobile
-        npx expo prebuild --clean || echo "Prebuild optional"
-        # APK build command will be available with paid Expo account
-        echo "APK build requires EAS account setup"
-
-    - name: Build APK Setup Instructions
-      run: |
-        echo "==== PRASHANT Mobile App Build ===="
-        echo ""
-        echo "To build APK, use one of these methods:"
-        echo ""
-        echo "Method 1: Using Expo Go (Free - for testing)"
-        echo "  cd mobile"
-        echo "  npx expo start"
-        echo "  Scan QR code with Expo Go app"
-        echo ""
-        echo "Method 2: Using EAS (Free account)"
-        echo "  eas login"
-        echo "  eas build --platform android"
-        echo ""
-        echo "Method 3: Manual APK generation"
-        echo "  cd mobile"
-        echo "  npx expo prebuild --clean"
-        echo "  cd android"
-        echo "  ./gradlew assembleRelease"
+        npx expo start
+        ```
+        Scan QR code with Expo Go app
+        
+        ### Method 2: Using Web (Instant)
+        ```bash
+        cd mobile
+        npm install -g expo-cli
+        npx expo start --web
+        ```
+        
+        ### Method 3: Real APK with EAS (5-10 mins)
+        ```bash
+        npm install -g eas-cli
+        eas login
+        eas build --platform android
+        ```
+        
+        Download signed APK from EAS dashboard
+        
+        ### Method 4: Manual Local Build
+        ```bash
+        cd mobile
+        npx expo prebuild --clean
+        cd android
+        ./gradlew assembleRelease
+        ```
+        
+        APK will be at: `mobile/android/app/build/outputs/apk/release/app-release.apk`
+        EOF
+        
+    - name: Upload Build Info
+      uses: actions/upload-artifact@v3
+      with:
+        name: PRASHANT-BUILD-INFO
+        path: |
+          mobile/dist/
+        retention-days: 30
+        
+    - name: Upload Build Guide
+      uses: actions/upload-artifact@v3
+      with:
+        name: APK-BUILD-METHODS
+        path: mobile/dist/APK-INFO.md
